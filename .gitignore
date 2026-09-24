@@ -1,0 +1,16 @@
+# SwiftPM / build output
+.build/
+build/
+dist/
+*.xcodeproj
+xcuserdata/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Release artifacts
+*.zip
+
+# Python
+__pycache__/
