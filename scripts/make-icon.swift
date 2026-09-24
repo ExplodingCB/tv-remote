@@ -1,5 +1,6 @@
 // Renders the app icon: usage `swift scripts/make-icon.swift out.icns [preview.png]`
-// Draws a first-generation Siri Remote with the same proportions as the app.
+// A white Siri Remote silhouette on a dark tile, drawn by hand (SF Symbols
+// can't be used in app icons).
 import AppKit
 
 let output = CommandLine.arguments.dropFirst().first ?? "AppIcon.icns"
@@ -8,49 +9,35 @@ let iconset = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponen
 try? FileManager.default.removeItem(at: iconset)
 try! FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-func gray(_ white: CGFloat) -> NSColor { NSColor(white: white, alpha: 1) }
+/// The remote in 1024-point icon space, top-left origin (y down). Buttons are
+/// holes cut out of the body so the tile shows through.
+func remotePath() -> NSBezierPath {
+    let path = NSBezierPath()
+    path.windingRule = .evenOdd
 
-func drawRemote() {
-    // Same layout constants as Theme in RemoteView.swift, in points.
-    let width: CGFloat = 240, height: CGFloat = 700, corner: CGFloat = 46
-    let glass: CGFloat = 290, button: CGFloat = 70, row: CGFloat = 88
-    let left = width * 0.3, right = width * 0.7, firstRow = glass + 62
+    let width: CGFloat = 208, height: CGFloat = 560
+    let left = (1024 - width) / 2, top = (1024 - height) / 2
+    path.append(NSBezierPath(roundedRect: NSRect(x: left, y: top, width: width, height: height),
+                             xRadius: 44, yRadius: 44))
 
-    let body = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: width, height: height),
-                            xRadius: corner, yRadius: corner)
-    gray(0.07).setFill()
-    body.fill()
-
-    NSGraphicsContext.saveGraphicsState()
-    body.addClip()
-    gray(0.2).setFill()
-    NSRect(x: 0, y: 0, width: width, height: glass).fill()
-    NSColor.black.setFill()
-    NSRect(x: 0, y: glass, width: width, height: 2).fill()
-    NSGraphicsContext.restoreGraphicsState()
-
-    func circle(_ x: CGFloat, _ y: CGFloat, _ d: CGFloat) -> NSBezierPath {
-        NSBezierPath(ovalIn: NSRect(x: x - d / 2, y: y - d / 2, width: d, height: d))
+    func hole(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat) {
+        path.append(NSBezierPath(ovalIn: NSRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)))
     }
 
-    gray(0.19).setFill()
-    circle(left, firstRow, button).fill()
-    circle(right, firstRow, button).fill()
-    circle(left, firstRow + row, button).fill()
-    circle(left, firstRow + row * 2, button).fill()
-    NSBezierPath(roundedRect: NSRect(x: right - button / 2, y: firstRow + row - button / 2,
-                                     width: button, height: button + row),
-                 xRadius: button / 2, yRadius: button / 2).fill()
+    let center: CGFloat = 512
+    let columnOffset: CGFloat = 40, button: CGFloat = 27
+    let leftColumn = center - columnOffset, rightColumn = center + columnOffset
 
-    // The white ring around MENU.
-    let ring = circle(left, firstRow, button + 9)
-    ring.lineWidth = 6
-    NSColor.white.setStroke()
-    ring.stroke()
-
-    // Microphone slot.
-    NSColor.black.setFill()
-    NSBezierPath(roundedRect: NSRect(x: width / 2 - 10, y: 16, width: 20, height: 5), xRadius: 2.5, yRadius: 2.5).fill()
+    hole(center, top + 128, 76)             // clickpad
+    hole(leftColumn, top + 250, button)     // back
+    hole(rightColumn, top + 250, button)    // TV
+    hole(leftColumn, top + 326, button)     // play/pause
+    hole(leftColumn, top + 402, button)     // mute
+    // Volume rocker, spanning the play/pause and mute rows.
+    path.append(NSBezierPath(roundedRect: NSRect(x: rightColumn - button, y: top + 326 - button,
+                                                 width: button * 2, height: 76 + button * 2),
+                             xRadius: button, yRadius: button))
+    return path
 }
 
 func render(_ px: Int) -> Data {
@@ -64,31 +51,18 @@ func render(_ px: Int) -> Data {
     // Standard macOS icon grid: 824pt body centered in 1024.
     let tile = NSBezierPath(roundedRect: NSRect(x: 100 * s, y: 100 * s, width: 824 * s, height: 824 * s),
                             xRadius: 185 * s, yRadius: 185 * s)
-    NSGradient(colors: [gray(0.96), gray(0.84)])!.draw(in: tile, angle: -90)
+    NSGradient(colors: [NSColor(white: 0.24, alpha: 1), NSColor(white: 0.07, alpha: 1)])!.draw(in: tile, angle: -90)
+    NSColor(white: 1, alpha: 0.12).setStroke()
+    tile.lineWidth = 3 * s
+    tile.stroke()
 
-    NSGraphicsContext.saveGraphicsState()
-    tile.addClip()
-    let shadow = NSShadow()
-    shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
-    shadow.shadowBlurRadius = 36 * s
-    shadow.shadowOffset = NSSize(width: 0, height: -14 * s)
-    shadow.set()
-    // One layer so the shadow falls from the remote as a whole, not each button.
-    let cg = NSGraphicsContext.current!.cgContext
-    cg.beginTransparencyLayer(auxiliaryInfo: nil)
-
-    // Stand the remote up the middle of the tile with a slight tilt; drawing
-    // happens in the remote's own top-left, y-down coordinates.
-    let scale = 0.93 * s
+    // Flip to top-left coordinates at icon scale, then fill the silhouette.
     let transform = NSAffineTransform()
-    transform.translateX(by: 512 * s, yBy: 512 * s)
-    transform.rotate(byDegrees: -14)
-    transform.scaleX(by: scale, yBy: -scale)
-    transform.translateX(by: -120, yBy: -350)
+    transform.translateX(by: 0, yBy: CGFloat(px))
+    transform.scaleX(by: s, yBy: -s)
     transform.concat()
-    drawRemote()
-    cg.endTransparencyLayer()
-    NSGraphicsContext.restoreGraphicsState()
+    NSColor(white: 0.93, alpha: 1).setFill()
+    remotePath().fill()
 
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!

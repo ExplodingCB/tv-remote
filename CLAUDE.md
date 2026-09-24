@@ -41,4 +41,5 @@ layout without a TV; add `TVREMOTE_DEMO_PAIRING=1` for the pairing screen.
 - Only the Companion service is enabled when connecting, so no AirPlay credentials are needed.
 - `strokeBorder` on a Capsule leaves a hairline past its ends; use a clipped `stroke`.
 - `onGeometryChange` on the safe-area inset feeds back into window sizing; measure it once.
-- Never use SF Symbols in the app icon (license). `scripts/make-icon.swift` draws it by hand.
+- Never use SF Symbols in the app icon (license). `scripts/make-icon.swift` draws the white
+  remote silhouette by hand, matching the look of the `appletvremote.gen4.fill` glyph.
