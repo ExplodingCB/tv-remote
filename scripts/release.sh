@@ -37,7 +37,10 @@ git commit -am "Release $VERSION"
 git tag "v$VERSION"
 git push origin HEAD "v$VERSION"
 
-BODY=$(cat <<NOTES_EOF
+# Written straight to a file: macOS's bash 3.2 can't parse parentheses in a
+# heredoc inside $(...).
+NOTES_FILE=$(mktemp)
+cat > "$NOTES_FILE" <<NOTES_EOF
 Universal (Apple Silicon + Intel) build of TV Remote $VERSION, macOS 15+.
 
 ## Install
@@ -54,13 +57,12 @@ xattr -dr com.apple.quarantine "/Applications/TV Remote.app"
 
 The app is ad-hoc signed (no paid Apple Developer account), so it is not notarized and macOS
 quarantines it until that flag is cleared. The Homebrew cask does this for you.
-${NOTES:+
-## What's in $VERSION
-
-$NOTES}
 NOTES_EOF
-)
-gh release create "v$VERSION" "$ZIP" -R "$REPO" --title "TV Remote $VERSION" --notes "$BODY"
+if [ -n "$NOTES" ]; then
+    printf '\n## What'"'"'s in %s\n\n%s\n' "$VERSION" "$NOTES" >> "$NOTES_FILE"
+fi
+gh release create "v$VERSION" "$ZIP" -R "$REPO" --title "TV Remote $VERSION" --notes-file "$NOTES_FILE"
+rm -f "$NOTES_FILE"
 
 # Point the cask at the new zip.
 TAP_DIR=$(mktemp -d)
